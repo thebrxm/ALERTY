@@ -154,6 +154,12 @@ const App: React.FC = () => {
     setLoading(false);
   };
 
+  const handleUpdateAlert = (id: string, updatedData: Partial<AlertData>) => {
+    setAlerts(prev => prev.map(alert => 
+      alert.id === id ? { ...alert, ...updatedData } : alert
+    ));
+  };
+
   const toggleAlertHandled = (id: string) => {
     setAlerts(prev => prev.map(alert => 
       alert.id === id ? { ...alert, isHandled: !alert.isHandled } : alert
@@ -410,6 +416,7 @@ const App: React.FC = () => {
                       alert={alert} 
                       onToggleHandled={toggleAlertHandled}
                       onDelete={deleteAlert}
+                      onUpdate={handleUpdateAlert}
                     />
                   ))}
                 </div>
