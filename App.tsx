@@ -324,17 +324,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Permission Denied Warning */}
-        {isSupported && permission === 'denied' && (
-           <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg border-l-4 border-slate-400 text-sm text-slate-700 dark:text-slate-300 flex items-start gap-3 shadow-sm">
-             <span className="text-xl">🔕</span>
-             <div>
-               <p className="font-bold font-mono uppercase">Notificaciones Bloqueadas</p>
-               <p className="text-slate-600 dark:text-slate-400 text-xs">Para recibir alertas, debe habilitar los permisos manualmente en la configuración del sitio.</p>
-             </div>
-          </div>
-        )}
-
         {/* Tab 1: Send Form */}
         {activeTab === 'send' && (
           <div className="animate-slide-in">
