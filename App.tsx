@@ -1,24 +1,45 @@
+
 import React, { useState, useEffect } from 'react';
 import { IncidentForm } from './components/IncidentForm';
 import { AlertCard } from './components/AlertCard';
 import { NotificationBell } from './components/NotificationBell';
 import { ToastNotification } from './components/ToastNotification';
-import { AlertData, Coordinates } from './types';
+import { SettingsPanel } from './components/SettingsPanel';
+import { AlertData, Coordinates, NotificationSettings } from './types';
 import { analyzeIncident } from './services/geminiService';
 
 const App: React.FC = () => {
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [loading, setLoading] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>('default');
+  const [isSupported, setIsSupported] = useState(true);
   
-  // New States for Navigation, Toast and Dark Mode
-  const [activeTab, setActiveTab] = useState<'send' | 'history'>('send');
+  // Navigation & UI States
+  const [activeTab, setActiveTab] = useState<'send' | 'history' | 'settings'>('send');
   const [toast, setToast] = useState<{message: string, location: string} | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Settings State with Persistence
+  const [settings, setSettings] = useState<NotificationSettings>(() => {
+    const saved = localStorage.getItem('alertSettings');
+    return saved ? JSON.parse(saved) : {
+      soundEnabled: true,
+      vibrationEnabled: true,
+      vibrationPattern: 'default',
+      customIconUrl: ''
+    };
+  });
+
   useEffect(() => {
-    if ('Notification' in window) {
+    localStorage.setItem('alertSettings', JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    // Check for browser support
+    if (!('Notification' in window)) {
+      setIsSupported(false);
+    } else {
       setPermission(Notification.permission);
     }
     
@@ -38,28 +59,45 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-      alert("Este navegador no soporta notificaciones de escritorio.");
-      return;
+    if (!isSupported) return;
+    
+    try {
+      const result = await Notification.requestPermission();
+      setPermission(result);
+    } catch (error) {
+      console.error("Error requesting notification permission:", error);
     }
-    const result = await Notification.requestPermission();
-    setPermission(result);
   };
 
   const sendPushNotification = async (alert: AlertData) => {
-    if (permission === 'granted') {
+    if (isSupported && permission === 'granted') {
       const title = `🚨 ${alert.incident}`;
       const bodyText = alert.notes 
         ? `${alert.location}\nNota: ${alert.notes}`
         : alert.location;
 
+      // Calculate Vibration Pattern
+      let vibratePattern: number[] = [];
+      if (settings.vibrationEnabled) {
+          switch (settings.vibrationPattern) {
+              case 'urgent': vibratePattern = [100, 50, 100, 50, 100, 50]; break;
+              case 'long': vibratePattern = [500, 200, 500, 200]; break;
+              case 'default': 
+              default: vibratePattern = [200, 100, 200]; break;
+          }
+      }
+
+      // Determine Icon
+      const iconUrl = settings.customIconUrl || 'https://cdn-icons-png.flaticon.com/512/564/564619.png';
+
       const options: any = {
         body: bodyText,
-        icon: 'https://cdn-icons-png.flaticon.com/512/564/564619.png',
-        badge: 'https://cdn-icons-png.flaticon.com/512/564/564619.png', // Icono pequeño para barra de estado Android
+        icon: iconUrl,
+        badge: 'https://cdn-icons-png.flaticon.com/512/564/564619.png', // Keep default badge for consistency
         tag: alert.id,
         requireInteraction: alert.severity === 'CRITICAL',
-        vibrate: [200, 100, 200, 100, 200], // Patrón de vibración para móviles
+        vibrate: vibratePattern,
+        silent: !settings.soundEnabled,
         data: { id: alert.id }
       };
 
@@ -171,10 +209,12 @@ const App: React.FC = () => {
             )}
           </button>
 
-          <NotificationBell 
-            permission={permission} 
-            onRequest={requestNotificationPermission} 
-          />
+          {isSupported && (
+            <NotificationBell 
+              permission={permission} 
+              onRequest={requestNotificationPermission} 
+            />
+          )}
         </div>
       </header>
 
@@ -183,46 +223,88 @@ const App: React.FC = () => {
         <div className="flex bg-slate-200 dark:bg-slate-800 p-1.5 rounded-xl shadow-inner transition-colors duration-300">
           <button
             onClick={() => setActiveTab('send')}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 px-2 rounded-lg text-[10px] sm:text-xs font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-1.5 ${
               activeTab === 'send' 
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
             REPORTE
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 px-2 rounded-lg text-[10px] sm:text-xs font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-1.5 ${
               activeTab === 'history' 
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             HISTORIAL
             {alerts.filter(a => !a.isHandled).length > 0 && (
-              <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-md font-mono">
+              <span className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded-md font-mono">
                 {alerts.filter(a => !a.isHandled).length}
               </span>
             )}
+          </button>
+           <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex-1 py-2.5 px-2 rounded-lg text-[10px] sm:text-xs font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-1.5 ${
+              activeTab === 'settings' 
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            AJUSTES
           </button>
         </div>
       </div>
 
       <main className="p-4 space-y-6">
-        {/* Permission Warning */}
-        {permission === 'default' && (
+        {/* Browser Incompatibility Warning */}
+        {!isSupported && (
+          <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg border-l-4 border-red-500 text-sm text-red-900 dark:text-red-200 flex items-start gap-3 shadow-sm">
+             <span className="text-xl">🚫</span>
+             <div>
+               <p className="font-bold font-mono uppercase">Dispositivo Incompatible</p>
+               <p className="text-red-800 dark:text-red-300">Este navegador no soporta notificaciones PUSH web.</p>
+             </div>
+          </div>
+        )}
+
+        {/* Permission Warning (Only if supported) */}
+        {isSupported && permission === 'default' && (
           <div className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg border-l-4 border-amber-500 text-sm text-amber-900 dark:text-amber-200 flex items-start gap-3 shadow-sm">
              <span className="text-xl">⚠️</span>
              <div>
                <p className="font-bold font-mono uppercase">Sistema Desconectado</p>
-               <p className="text-amber-800 dark:text-amber-300">Habilite las notificaciones para sincronizar.</p>
+               <p className="text-amber-800 dark:text-amber-300">Habilite las notificaciones para sincronizar alertas en tiempo real.</p>
+               <button 
+                onClick={requestNotificationPermission}
+                className="mt-2 text-amber-700 dark:text-amber-400 font-bold text-xs underline uppercase tracking-wide"
+               >
+                 Conectar Ahora
+               </button>
+             </div>
+          </div>
+        )}
+
+        {/* Permission Denied Warning */}
+        {isSupported && permission === 'denied' && (
+           <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg border-l-4 border-slate-400 text-sm text-slate-700 dark:text-slate-300 flex items-start gap-3 shadow-sm">
+             <span className="text-xl">🔕</span>
+             <div>
+               <p className="font-bold font-mono uppercase">Notificaciones Bloqueadas</p>
+               <p className="text-slate-600 dark:text-slate-400 text-xs">Para recibir alertas, debe habilitar los permisos manualmente en la configuración del sitio.</p>
              </div>
           </div>
         )}
@@ -314,6 +396,11 @@ const App: React.FC = () => {
               )
             )}
           </div>
+        )}
+
+        {/* Tab 3: Settings */}
+        {activeTab === 'settings' && (
+          <SettingsPanel settings={settings} onUpdate={setSettings} />
         )}
       </main>
     </div>

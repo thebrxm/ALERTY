@@ -1,3 +1,4 @@
+
 export enum SeverityLevel {
   CRITICAL = 'CRITICAL',
   WARNING = 'WARNING',
@@ -24,4 +25,11 @@ export interface AlertData {
 export interface GeminiAnalysisResult {
   formattedMessage: string;
   severity: SeverityLevel;
+}
+
+export interface NotificationSettings {
+  soundEnabled: boolean;
+  vibrationEnabled: boolean;
+  vibrationPattern: 'default' | 'urgent' | 'long';
+  customIconUrl: string;
 }
