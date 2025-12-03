@@ -34,8 +34,9 @@ export const AlertCard: React.FC<Props> = ({ alert, onToggleHandled, onDelete })
   };
 
   return (
-    <div className={`relative flex rounded-lg overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-300 
+    <div className={`relative flex rounded-lg overflow-hidden shadow-sm transition-all duration-300 
       ${getSeverityBg(alert.severity)} 
+      ${isCritical ? 'border-[3px] border-red-600 dark:border-red-500' : 'border border-slate-200 dark:border-slate-700'} 
       ${isHandled ? 'opacity-60' : 'translate-x-0'} 
       ${isCritical ? 'animate-alert-critical' : ''}
     `}>

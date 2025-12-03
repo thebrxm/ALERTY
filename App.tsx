@@ -5,7 +5,7 @@ import { AlertCard } from './components/AlertCard';
 import { NotificationBell } from './components/NotificationBell';
 import { ToastNotification } from './components/ToastNotification';
 import { SettingsPanel } from './components/SettingsPanel';
-import { AlertData, Coordinates, NotificationSettings } from './types';
+import { AlertData, Coordinates, NotificationSettings, SeverityLevel } from './types';
 import { analyzeIncident } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -31,6 +31,9 @@ const App: React.FC = () => {
     };
   });
 
+  // Derived state for Critical Alert Mode
+  const hasCriticalAlerts = alerts.some(a => !a.isHandled && a.severity === SeverityLevel.CRITICAL);
+
   useEffect(() => {
     localStorage.setItem('alertSettings', JSON.stringify(settings));
   }, [settings]);
@@ -41,6 +44,10 @@ const App: React.FC = () => {
       setIsSupported(false);
     } else {
       setPermission(Notification.permission);
+      // Auto-request permission on load if default
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(res => setPermission(res));
+      }
     }
     
     // Check system preference for dark mode initially
@@ -179,7 +186,7 @@ const App: React.FC = () => {
       )}
 
       {/* Medical Header */}
-      <header className="bg-slate-900 dark:bg-slate-950 text-white sticky top-0 z-10 px-6 py-5 flex justify-between items-center shadow-lg border-b-4 border-red-600">
+      <header className={`bg-slate-900 dark:bg-slate-950 text-white sticky top-0 z-10 px-6 py-5 flex justify-between items-center shadow-lg border-b-4 transition-colors duration-500 ${hasCriticalAlerts ? 'border-red-600' : 'border-slate-700'}`}>
         <div className="flex items-center gap-3">
           <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm border border-white/10">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -192,6 +199,19 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          
+          {/* Emergency Pulse Icon (Only shows when critical unhandled alerts exist) */}
+          {hasCriticalAlerts && (
+            <div className="relative mr-2 flex items-center justify-center">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+              <div className="relative bg-red-600 p-1.5 rounded-full shadow-lg shadow-red-600/50 flex items-center justify-center">
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          )}
+
           {/* Dark Mode Toggle */}
           <button 
             onClick={() => setDarkMode(!darkMode)}
