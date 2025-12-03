@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'send' | 'history'>('send');
   const [toast, setToast] = useState<{message: string, location: string} | null>(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -117,6 +118,15 @@ const App: React.FC = () => {
   const deleteAlert = (id: string) => {
     setAlerts(prev => prev.filter(alert => alert.id !== id));
   };
+
+  const filteredAlerts = alerts.filter(alert => {
+    const query = searchQuery.toLowerCase();
+    return (
+      alert.incident.toLowerCase().includes(query) ||
+      alert.location.toLowerCase().includes(query) ||
+      (alert.notes && alert.notes.toLowerCase().includes(query))
+    );
+  });
 
   return (
     <div className="min-h-screen pb-20 max-w-md mx-auto sm:max-w-xl md:max-w-2xl bg-slate-50 dark:bg-slate-900 shadow-2xl overflow-hidden border-x border-slate-200 dark:border-slate-800 relative transition-colors duration-300">
@@ -240,6 +250,33 @@ const App: React.FC = () => {
                 </button>
               )}
             </div>
+
+            {alerts.length > 0 && (
+              <div className="relative mb-4 group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar evento, ubicación..."
+                  className="w-full pl-10 pr-10 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
             
             {alerts.length === 0 ? (
               <div className="text-center py-20 flex flex-col items-center opacity-40 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-100/50 dark:bg-slate-800/50">
@@ -251,16 +288,30 @@ const App: React.FC = () => {
                 <p className="font-mono font-bold text-slate-500 dark:text-slate-400">SIN REGISTROS</p>
               </div>
             ) : (
-              <div className="space-y-3 pb-10">
-                {alerts.map(alert => (
-                  <AlertCard 
-                    key={alert.id} 
-                    alert={alert} 
-                    onToggleHandled={toggleAlertHandled}
-                    onDelete={deleteAlert}
-                  />
-                ))}
-              </div>
+              filteredAlerts.length === 0 ? (
+                <div className="text-center py-12 flex flex-col items-center">
+                  <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-full mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">No hay coincidencias para "{searchQuery}"</p>
+                  <button onClick={() => setSearchQuery('')} className="mt-2 text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold hover:underline transition-colors">
+                    LIMPIAR BÚSQUEDA
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3 pb-10">
+                  {filteredAlerts.map(alert => (
+                    <AlertCard 
+                      key={alert.id} 
+                      alert={alert} 
+                      onToggleHandled={toggleAlertHandled}
+                      onDelete={deleteAlert}
+                    />
+                  ))}
+                </div>
+              )
             )}
           </div>
         )}

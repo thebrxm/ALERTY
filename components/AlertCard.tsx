@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AlertData, SeverityLevel } from '../types';
 
 interface Props {
@@ -8,7 +8,9 @@ interface Props {
 }
 
 export const AlertCard: React.FC<Props> = ({ alert, onToggleHandled, onDelete }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
   const isHandled = alert.isHandled;
+  const isCritical = !isHandled && alert.severity === SeverityLevel.CRITICAL;
 
   const getSeverityColor = (severity: SeverityLevel) => {
     if (isHandled) return 'bg-slate-300 dark:bg-slate-600 border-slate-300 dark:border-slate-600';
@@ -32,8 +34,33 @@ export const AlertCard: React.FC<Props> = ({ alert, onToggleHandled, onDelete })
   };
 
   return (
-    <div className={`relative flex rounded-lg overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-300 ${getSeverityBg(alert.severity)} ${isHandled ? 'opacity-60' : 'translate-x-0'}`}>
+    <div className={`relative flex rounded-lg overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-300 
+      ${getSeverityBg(alert.severity)} 
+      ${isHandled ? 'opacity-60' : 'translate-x-0'} 
+      ${isCritical ? 'animate-alert-critical' : ''}
+    `}>
       
+      {/* Confirmation Overlay */}
+      {isDeleting && (
+        <div className="absolute inset-0 z-20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center transition-all duration-200 animate-slide-in">
+          <p className="text-slate-800 dark:text-slate-200 font-bold mb-3 text-sm">¿Eliminar reporte permanentemente?</p>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setIsDeleting(false)}
+              className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+            >
+              CANCELAR
+            </button>
+            <button 
+              onClick={() => onDelete(alert.id)}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-500 shadow-lg shadow-red-600/20 transition-colors flex items-center gap-1"
+            >
+              CONFIRMAR
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar Color Indicator */}
       <div className={`w-2 flex-shrink-0 ${getSeverityColor(alert.severity)}`}></div>
 
@@ -119,7 +146,7 @@ export const AlertCard: React.FC<Props> = ({ alert, onToggleHandled, onDelete })
 
         <button 
           type="button"
-          onClick={() => onDelete(alert.id)}
+          onClick={() => setIsDeleting(true)}
           className="flex-1 flex items-center justify-center px-3 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           title="Borrar"
         >
