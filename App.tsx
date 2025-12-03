@@ -1,0 +1,272 @@
+import React, { useState, useEffect } from 'react';
+import { IncidentForm } from './components/IncidentForm';
+import { AlertCard } from './components/AlertCard';
+import { NotificationBell } from './components/NotificationBell';
+import { ToastNotification } from './components/ToastNotification';
+import { AlertData, Coordinates } from './types';
+import { analyzeIncident } from './services/geminiService';
+
+const App: React.FC = () => {
+  const [alerts, setAlerts] = useState<AlertData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [permission, setPermission] = useState<NotificationPermission>('default');
+  
+  // New States for Navigation, Toast and Dark Mode
+  const [activeTab, setActiveTab] = useState<'send' | 'history'>('send');
+  const [toast, setToast] = useState<{message: string, location: string} | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    if ('Notification' in window) {
+      setPermission(Notification.permission);
+    }
+    
+    // Check system preference for dark mode initially
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setDarkMode(true);
+    }
+  }, []);
+
+  // Toggle Dark Mode Class on HTML element
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert("Este navegador no soporta notificaciones de escritorio.");
+      return;
+    }
+    const result = await Notification.requestPermission();
+    setPermission(result);
+  };
+
+  const sendPushNotification = async (alert: AlertData) => {
+    if (permission === 'granted') {
+      const title = `🚨 ${alert.incident}`;
+      const bodyText = alert.notes 
+        ? `${alert.location}\nNota: ${alert.notes}`
+        : alert.location;
+
+      const options: any = {
+        body: bodyText,
+        icon: 'https://cdn-icons-png.flaticon.com/512/564/564619.png',
+        badge: 'https://cdn-icons-png.flaticon.com/512/564/564619.png', // Icono pequeño para barra de estado Android
+        tag: alert.id,
+        requireInteraction: alert.severity === 'CRITICAL',
+        vibrate: [200, 100, 200, 100, 200], // Patrón de vibración para móviles
+        data: { id: alert.id }
+      };
+
+      try {
+        // Intentar usar el Service Worker (Mejor para móviles/Android)
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          registration.showNotification(title, options);
+        } else {
+          // Fallback a la API clásica si el SW no está listo
+          const notification = new Notification(title, options);
+          notification.onclick = () => window.focus();
+        }
+      } catch (e) {
+        console.error("Error enviando notificación:", e);
+        // Último intento con API clásica
+        new Notification(title, options);
+      }
+    }
+  };
+
+  const handleCreateAlert = async (incident: string, location: string, notes: string, coords?: Coordinates) => {
+    setLoading(true);
+    
+    const analysis = await analyzeIncident(incident, location);
+
+    const newAlert: AlertData = {
+      id: Date.now().toString(),
+      incident,
+      location,
+      notes,
+      formattedMessage: analysis.formattedMessage,
+      severity: analysis.severity,
+      timestamp: new Date(),
+      coordinates: coords,
+      isHandled: false
+    };
+
+    setAlerts(prev => [newAlert, ...prev]);
+    
+    // Trigger Notifications
+    sendPushNotification(newAlert);
+    
+    // Trigger In-App Balloon (Toast)
+    setToast({ message: incident, location: location });
+
+    setLoading(false);
+  };
+
+  const toggleAlertHandled = (id: string) => {
+    setAlerts(prev => prev.map(alert => 
+      alert.id === id ? { ...alert, isHandled: !alert.isHandled } : alert
+    ));
+  };
+
+  const deleteAlert = (id: string) => {
+    setAlerts(prev => prev.filter(alert => alert.id !== id));
+  };
+
+  return (
+    <div className="min-h-screen pb-20 max-w-md mx-auto sm:max-w-xl md:max-w-2xl bg-slate-50 dark:bg-slate-900 shadow-2xl overflow-hidden border-x border-slate-200 dark:border-slate-800 relative transition-colors duration-300">
+      
+      {/* Toast / Balloon Notification */}
+      {toast && (
+        <ToastNotification 
+          message={toast.message} 
+          subMessage={toast.location}
+          onClose={() => setToast(null)} 
+        />
+      )}
+
+      {/* Medical Header */}
+      <header className="bg-slate-900 dark:bg-slate-950 text-white sticky top-0 z-10 px-6 py-5 flex justify-between items-center shadow-lg border-b-4 border-red-600">
+        <div className="flex items-center gap-3">
+          <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm border border-white/10">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-xl font-black tracking-wider uppercase font-mono">ALERTY</h1>
+            <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">Sistema de Respuesta</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Dark Mode Toggle */}
+          <button 
+            onClick={() => setDarkMode(!darkMode)}
+            className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+            title={darkMode ? "Modo Claro" : "Modo Oscuro"}
+          >
+            {darkMode ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            )}
+          </button>
+
+          <NotificationBell 
+            permission={permission} 
+            onRequest={requestNotificationPermission} 
+          />
+        </div>
+      </header>
+
+      {/* Medical Style Tabs */}
+      <div className="px-4 pt-6 pb-2">
+        <div className="flex bg-slate-200 dark:bg-slate-800 p-1.5 rounded-xl shadow-inner transition-colors duration-300">
+          <button
+            onClick={() => setActiveTab('send')}
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-2 ${
+              activeTab === 'send' 
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            REPORTE
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 flex items-center justify-center gap-2 ${
+              activeTab === 'history' 
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            HISTORIAL
+            {alerts.filter(a => !a.isHandled).length > 0 && (
+              <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-md font-mono">
+                {alerts.filter(a => !a.isHandled).length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <main className="p-4 space-y-6">
+        {/* Permission Warning */}
+        {permission === 'default' && (
+          <div className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg border-l-4 border-amber-500 text-sm text-amber-900 dark:text-amber-200 flex items-start gap-3 shadow-sm">
+             <span className="text-xl">⚠️</span>
+             <div>
+               <p className="font-bold font-mono uppercase">Sistema Desconectado</p>
+               <p className="text-amber-800 dark:text-amber-300">Habilite las notificaciones para sincronizar.</p>
+             </div>
+          </div>
+        )}
+
+        {/* Tab 1: Send Form */}
+        {activeTab === 'send' && (
+          <div className="animate-slide-in">
+             <IncidentForm onSubmit={handleCreateAlert} isLoading={loading} />
+          </div>
+        )}
+
+        {/* Tab 2: History Feed */}
+        {activeTab === 'history' && (
+          <div className="animate-slide-in">
+            <div className="flex justify-between items-end mb-4 px-1 border-b border-slate-200 dark:border-slate-700 pb-2">
+              <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-mono">
+                Log de Eventos
+              </h2>
+              {alerts.some(a => a.isHandled) && (
+                <button 
+                  onClick={() => setAlerts(prev => prev.filter(a => !a.isHandled))}
+                  className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 hover:underline font-bold uppercase tracking-wide"
+                >
+                  Purgar Archivados
+                </button>
+              )}
+            </div>
+            
+            {alerts.length === 0 ? (
+              <div className="text-center py-20 flex flex-col items-center opacity-40 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-100/50 dark:bg-slate-800/50">
+                <div className="bg-slate-200 dark:bg-slate-700 p-6 rounded-full mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <p className="font-mono font-bold text-slate-500 dark:text-slate-400">SIN REGISTROS</p>
+              </div>
+            ) : (
+              <div className="space-y-3 pb-10">
+                {alerts.map(alert => (
+                  <AlertCard 
+                    key={alert.id} 
+                    alert={alert} 
+                    onToggleHandled={toggleAlertHandled}
+                    onDelete={deleteAlert}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default App;
