@@ -80,37 +80,6 @@ export const SettingsPanel: React.FC<Props> = ({ settings, onUpdate }) => {
             </div>
           )}
         </section>
-
-        {/* Customization */}
-        <section className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-            </svg>
-            Personalización
-          </h3>
-          
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Icono de Notificación (URL)</label>
-            <div className="flex gap-3">
-              <input 
-                type="url" 
-                value={settings.customIconUrl}
-                onChange={(e) => handleChange('customIconUrl', e.target.value)}
-                placeholder="https://ejemplo.com/icono.png"
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm placeholder-slate-400 dark:placeholder-slate-600 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-              />
-              <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center overflow-hidden shrink-0">
-                 {settings.customIconUrl ? (
-                   <img src={settings.customIconUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
-                 ) : (
-                   <span className="text-[10px] text-slate-400 font-mono">IMG</span>
-                 )}
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1.5">Deja vacío para usar el icono predeterminado.</p>
-          </div>
-        </section>
       </div>
     </div>
   );
